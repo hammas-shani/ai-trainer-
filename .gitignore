@@ -1,0 +1,12 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+
+# Specific backend .env file
+backend/.env
+
+# To be safe, ignore all .env files anywhere in the project
+*.env
+.env
