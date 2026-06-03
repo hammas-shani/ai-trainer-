@@ -1,0 +1,6 @@
+Session Configuration: ai
+============================================================
+
+User: Hi
+AI: How are you?
+

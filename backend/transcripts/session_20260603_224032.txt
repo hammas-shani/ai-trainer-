@@ -1,0 +1,9 @@
+Session Configuration: ai 
+============================================================
+
+User: ...
+AI: *laughs* no worries, let's jump to another topic, how's your day going so far?
+
+User: Hi
+AI: Hi, how are you?
+

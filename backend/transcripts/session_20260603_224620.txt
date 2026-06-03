@@ -1,0 +1,36 @@
+Session Configuration: ai
+============================================================
+
+User: Hi
+AI: How are you?
+
+User: ...
+AI: *laughs* no worries, let's jump to another topic, what's been the highlight of your week?
+
+User: ...
+AI: Still a bit quiet, huh, what kind of music are you into?
+
+User: ...
+AI: *chuckles* okay, let's try something else, have you traveled anywhere exciting recently?
+
+User: ...
+AI: No problem, so what do you like to do in your free time?
+
+User: ...
+AI: *laughs* alright, movies, have you seen any good ones lately?
+
+User: ...
+AI: Guess we're having a quiet day, want to talk about food instead?
+
+User: ...
+AI: No worries, let's start fresh, do you have any fun plans for the weekend?
+
+User: ...
+AI: *smirks* I guess I'll just keep trying, are you more of a morning or night person?
+
+User: ...
+AI: *laughs* okay, let's play a game, I'll start with a random word, cake.
+
+User: ...
+AI: Guess that didn't work, what's your favorite type of tech gadget?
+
