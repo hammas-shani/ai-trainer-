@@ -1,109 +1,72 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage
 import json
-import os
-from datetime import datetime
-
-# Import crash-safeguarded graph
+from langchain_core.messages import HumanMessage # Naya Import
 from graph_logic import app_graph
+from audio_service import text_to_speech_bytes # Make sure file is audio_service.py
 
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Ensure folders exist gracefully
-try:
-    os.makedirs("transcripts", exist_ok=True)
-except Exception as folder_err:
-    print(f"⚠️ Cannot create transcripts directory: {folder_err}")
 
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     
-    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    transcript_filename = f"transcripts/session_{session_id}.txt"
-    
     state = {
         "messages": [],
-        "user_detailed_prompt": "Act as a professional peer.",
-        "formatted_transcript": ""
+        "user_detailed_prompt": "Act as a professional interviewer."
     }
     
     try:
-        # 1. Configuration Phase with Validation Try-Block
-        try:
-            config_data = await websocket.receive_text()
-            config_json = json.loads(config_data)
-            state["user_detailed_prompt"] = config_json.get("prompt", "Act as a professional peer.")
-            await websocket.send_text(json.dumps({"type": "system", "message": "Connected safely."}))
-        except json.JSONDecodeError:
-            print("⚠️ Invalid initial configuration format received.")
-            await websocket.send_text(json.dumps({"type": "error", "message": "Invalid config format."}))
-            return
-
-        # 2. Resilient Chat Loop
         while True:
+            raw_data = await websocket.receive_text()
+            if not raw_data: continue
+            
             try:
-                user_message_text = await websocket.receive_text()
-                
-                # Malformed incoming request fallback
-                if not user_message_text or not user_message_text.strip():
-                    continue
-
-                state["messages"].append(HumanMessage(content=user_message_text))
-                
-                # Safeguard against uncompiled graph logic
-                if app_graph is None:
-                    await websocket.send_text(json.dumps({"type": "ai", "message": "System is recovering from an internal state reset. Give me a second please."}))
-                    continue
-
-                print(f"🤖 Processing turn for session {session_id}...")
-                new_state = app_graph.invoke(state)
-                
-                # Fetching response securely
-                if new_state and "messages" in new_state and len(new_state["messages"]) > 0:
-                    ai_response = new_state["messages"][-1].content
-                    await websocket.send_text(json.dumps({"type": "ai", "message": ai_response}))
-                    
-                    # Update active loop memory securely
-                    state["messages"] = new_state["messages"]
-                    
-                    # Safe Async File Logging
-                    latest_transcript = new_state.get("formatted_transcript", "")
-                    if latest_transcript:
-                        try:
-                            with open(transcript_filename, "w", encoding="utf-8") as f:
-                                f.write(f"Session Configuration: {state['user_detailed_prompt']}\n")
-                                f.write("="*60 + "\n\n")
-                                f.write(latest_transcript)
-                            state["formatted_transcript"] = latest_transcript
-                        except IOError as file_io_err:
-                            print(f"⚠️ Transcript logging failed to disk: {file_io_err}")
+                data = json.loads(raw_data)
+                if isinstance(data, dict):
+                    if data.get("prompt"):
+                        state["user_detailed_prompt"] = data["prompt"]
+                        continue
+                    if data.get("type") == "stream":
+                        continue # Ignore stream payload for AI generation
+                    if data.get("type") == "final":
+                        user_message = data.get("text", "").strip()
+                    else:
+                        user_message = raw_data.strip()
                 else:
-                    raise ValueError("LangGraph state pipeline returned an empty response stack.")
+                    user_message = raw_data.strip()
+            except json.JSONDecodeError:
+                user_message = raw_data.strip()
 
-            except WebSocketDisconnect:
-                # Normal close hook management
-                print(f"🔌 Clean disconnection: Session {session_id} ended.")
-                break
-            except Exception as loop_error:
-                print(f"🚨 Runtime exception inside chat transaction loop: {loop_error}")
-                try:
-                    await websocket.send_text(json.dumps({"type": "ai", "message": "Sorry, I experienced a minor network hitch. What were you saying?"}))
-                except Exception:
-                    # Connection is totally dead, exit process
-                    break
+            if not user_message:
+                continue
 
-    except Exception as connection_level_critical_err:
-        print(f"💀 Critical Connection Level Error: {connection_level_critical_err}")
-    finally:
-        # Final safety cleanup blocks
-        print(f"🔒 Closed resources for session {session_id}")
+            print(f"👤 User: {user_message}")
+            
+            # 🚀 THE FIX: Directly append as HumanMessage object
+            state["messages"].append(HumanMessage(content=user_message))
+            
+            new_state = app_graph.invoke(state)
+            
+            # 🚀 THE FIX: Safely extract response whether it's dict or object
+            ai_response_obj = new_state["messages"][-1]
+            if isinstance(ai_response_obj, dict):
+                ai_response = ai_response_obj.get("content", "")
+            else:
+                ai_response = ai_response_obj.content
+                
+            print(f"🤖 AI: {ai_response}")
+            
+            audio_b64 = text_to_speech_bytes(ai_response)
+
+            await websocket.send_text(json.dumps({
+                "type": "ai",
+                "message": ai_response,
+                "audio": audio_b64
+            }))
+            
+    except WebSocketDisconnect:
+        print("🔌 Disconnected")
+    except Exception as e:
+        print(f"🚨 Critical Error: {e}")
+        import traceback
+        traceback.print_exc()
