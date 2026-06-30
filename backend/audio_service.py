@@ -1,42 +1,37 @@
-import subprocess
+import asyncio
+import edge_tts
 import base64
-import os
 import uuid
-import re
-import sys
+import os
+from config import config
 
-def text_to_speech_bytes(text: str) -> str:
+async def text_to_speech_bytes(text: str) -> str:
+    """
+    Uses edge-tts Python API directly to avoid subprocess overhead.
+    Returns base64 encoded mp3 string.
+    """
     try:
-        # Action tags remove karega
-        cleaned = re.sub(r'\*.*?\*|\[.*?\]', '', text).strip()
+        # Clean text
+        cleaned = text.replace("*", "").replace("[", "").replace("]", "").strip()
         if not cleaned:
             cleaned = "I am listening."
 
         filename = f"audio_{uuid.uuid4().hex}.mp3"
         
-        # Subprocess execution
-        command = [
-            sys.executable, "-m", "edge_tts",
-            "--voice", "en-US-ChristopherNeural",
-            "--rate", "+5%",
-            "--text", cleaned,
-            "--write-media", filename
-        ]
-
-        result = subprocess.run(command, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            print("TTS ERROR:", result.stderr)
+        communicate = edge_tts.Communicate(cleaned, config.TTS_VOICE, rate=config.TTS_RATE)
+        
+        await communicate.save(filename)
+        
+        if not os.path.exists(filename):
             return ""
-
+            
         with open(filename, "rb") as f:
-            audio = f.read()
-
-        if os.path.exists(filename):
-            os.remove(filename)
-
-        return base64.b64encode(audio).decode()
-
+            audio_data = f.read()
+            
+        os.remove(filename)
+        
+        return base64.b64encode(audio_data).decode()
+        
     except Exception as e:
-        print("TTS ERROR:", e)
+        print(f"🚨 TTS ERROR: {e}")
         return ""
